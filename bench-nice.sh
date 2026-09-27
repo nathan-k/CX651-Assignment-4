@@ -14,10 +14,11 @@ if ! [[ "$num_processes" =~ ^[1-9][0-9]*$ ]] ||
     exit 1
 fi
 
-# Odd-numbered runs are high priority, even-numbered runs are low priority.
-# Negative niceness needs root, so the default priority (0) is the high end.
-high_nice=0
-low_nice=19
+# Niceness rises evenly from 0 (default priority) on the first run to 19
+# (lowest priority) on the last. Staying at 0 or above avoids needing root,
+# since only root can raise a process's priority with negative niceness.
+min_nice=0
+max_nice=19
 
 output_dir="data/bench-nice-${matrix_size}"
 
@@ -30,10 +31,13 @@ pids=()
 
 for i in $(seq 1 "$num_processes")
 do
-    if (( i % 2 == 1 )); then
-        niceness=$high_nice
+    if (( num_processes == 1 )); then
+        niceness=$min_nice
     else
-        niceness=$low_nice
+        # Rounded linear interpolation between min_nice and max_nice
+        span=$(( max_nice - min_nice ))
+        steps=$(( num_processes - 1 ))
+        niceness=$(( min_nice + ((i - 1) * span + steps / 2) / steps ))
     fi
 
     /usr/bin/time \
